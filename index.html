@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Maze Escape — escape procedurally generated mazes before time runs out. Fog mode, hidden stars, per-size best times. Free HTML5 game.">
+<title>Maze Escape</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0b0e1a; font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC",sans-serif; }
+  button { font-family:inherit; touch-action:manipulation; }
+  #wrap { height:100%; display:flex; flex-direction:column; align-items:center; }
+  #hud { width:100%; max-width:560px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px 6px; color:#e8ecf8; flex-wrap:wrap; }
+  .stat { text-align:center; min-width:58px; }
+  .stat .label { font-size:10px; color:#7e86a8; letter-spacing:1px; }
+  .stat .val { font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; }
+  #hTime.low { color:#ff6b81; }
+  #hBtns { display:flex; gap:6px; margin-left:auto; }
+  .mini { background:#1a2036; color:#aab3d6; border:1px solid #2c3554; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; letter-spacing:.5px; }
+  .mini:active { transform:scale(.96); }
+  #stage { position:relative; flex:1; width:100%; min-height:0; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; border-radius:10px; touch-action:none; box-shadow:0 0 0 1px #232a48, 0 10px 40px rgba(0,0,0,.5); }
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(6,8,18,.74); backdrop-filter:blur(4px); z-index:5; }
+  #overlay.show { display:flex; }
+  #panel { background:#141930; border:1px solid #2c3554; border-radius:18px; padding:24px 28px; text-align:center; color:#fff; width:min(92vw,430px); max-height:94%; overflow:auto; }
+  .logo { font-size:30px; letter-spacing:3px; color:#ffd76a; margin-bottom:8px; font-weight:900; text-shadow:0 0 24px rgba(255,215,106,.35); }
+  #panel h2 { font-size:24px; margin-bottom:6px; letter-spacing:1px; }
+  .wt { color:#6dff9e; } .lt { color:#ff6b81; }
+  .sub { color:#9aa3c7; font-size:12.5px; line-height:1.55; margin-bottom:14px; }
+  .row { display:flex; gap:8px; justify-content:center; margin-bottom:12px; }
+  .sizeBtn { flex:1; background:#1a2036; border:1px solid #2c3554; color:#aab3d6; border-radius:12px; padding:10px 4px; font-size:12px; font-weight:800; cursor:pointer; letter-spacing:.5px; }
+  .sizeBtn small { display:block; font-weight:600; font-size:10px; color:#7e86a8; margin-top:3px; }
+  .sizeBtn.sel { background:#2b3a6e; border-color:#5b6cff; color:#fff; box-shadow:0 0 14px rgba(91,108,255,.4); }
+  .opt { display:block; width:100%; background:#1a2036; border:1px solid #2c3554; color:#aab3d6; border-radius:12px; padding:9px; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:12px; }
+  .opt.on { color:#6ee7ff; border-color:#2e5a72; }
+  .optsub { display:block; font-size:10px; color:#7e86a8; font-weight:600; margin-top:2px; }
+  .main { display:block; width:100%; background:linear-gradient(135deg,#5b6cff,#8a5bff); color:#fff; border:none; border-radius:12px; padding:13px; font-size:17px; font-weight:900; letter-spacing:2px; cursor:pointer; }
+  .main:active { transform:scale(.98); }
+  .btnRow { display:flex; gap:10px; margin-top:4px; }
+  .btnRow .main { flex:1; }
+  .ghost { flex:1; background:#1a2036; border:1px solid #2c3554; color:#aab3d6; border-radius:12px; padding:13px; font-size:14px; font-weight:800; cursor:pointer; }
+  .final { font-size:32px; font-weight:900; color:#ffd76a; margin:8px 0; font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; background:#23305c; color:#6ee7ff; border-radius:20px; padding:4px 14px; font-size:12px; font-weight:800; letter-spacing:2px; margin:2px 0 8px; }
+  .tag.gold { background:#3a2e10; color:#ffd76a; }
+  .hint { color:#7e86a8; font-size:11px; margin-top:12px; line-height:1.7; }
+  #dpad { display:none; grid-template-columns:repeat(3,58px); grid-auto-rows:58px; gap:7px; padding:6px 0 10px; user-select:none; -webkit-user-select:none; }
+  #dpad.show { display:grid; }
+  .pbtn { border:1px solid #2c3554; background:rgba(26,32,54,.88); color:#8fd0ff; border-radius:14px; font-size:19px; cursor:pointer; touch-action:none; }
+  .pbtn:active { background:#2b3a6e; }
+  #pUp { grid-column:2; grid-row:1; }
+  #pLeft { grid-column:1; grid-row:2; }
+  #pDown { grid-column:2; grid-row:2; }
+  #pRight { grid-column:3; grid-row:2; }
+  #footer { color:#555e80; font-size:11px; padding:5px 0 10px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat"><div class="label">TIME</div><div class="val" id="hTime">--</div></div>
+    <div class="stat"><div class="label">STARS</div><div class="val" id="hStars">0/3</div></div>
+    <div class="stat"><div class="label">BEST</div><div class="val" id="hBest">--</div></div>
+    <div id="hBtns">
+      <button id="sndBtn" class="mini">SOUND ON</button>
+      <button id="menuBtn" class="mini">MENU</button>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="overlay"><div id="panel"></div></div>
+  </div>
+  <div id="dpad">
+    <button class="pbtn" id="pUp">&#9650;</button>
+    <button class="pbtn" id="pLeft">&#9664;</button>
+    <button class="pbtn" id="pDown">&#9660;</button>
+    <button class="pbtn" id="pRight">&#9654;</button>
+  </div>
+  <div id="footer">Maze Escape — a free maze puzzle game</div>
+</div>
+<script>
+"use strict";
+
+/* ============================================================
+   迷宫引擎（单元测试覆盖区：可整块抽出在 Node 中独立运行）
+   数据结构：walls 为 Uint8Array，walls[i] 的低 4 位是墙位掩码
+   1=上 2=右 4=下 8=左；通道 = 该位为 0
+   ============================================================ */
+// __MAZE_ENGINE_START__
+var T = 1, R = 2, B = 4, L = 8;
+var DIRS = [
+  { bit:T, ob:B, dc:0, dr:-1 },  // 上
+  { bit:R, ob:L, dc:1, dr:0 },   // 右
+  { bit:B, ob:T, dc:0, dr:1 },   // 下
+  { bit:L, ob:R, dc:-1, dr:0 }   // 左
+];
+
+// 递归回溯（迭代栈版）生成完美迷宫：任意两点之间有且仅有一条路径
+function genMaze(n) {
+  var total = n * n;
+  var w = new Uint8Array(total); w.fill(15);
+  var vis = new Uint8Array(total);
+  var stack = [0]; vis[0] = 1;
+  while (stack.length) {
+    var cur = stack[stack.length - 1];
+    var r = (cur / n) | 0, c = cur % n;
+    var opts = [];
+    for (var d = 0; d < 4; d++) {
+      var nc = c + DIRS[d].dc, nr = r + DIRS[d].dr;
+      if (nc < 0 || nr < 0 || nc >= n || nr >= n) continue;
+      if (!vis[nr * n + nc]) opts.push(d);
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    var dd = opts[(Math.random() * opts.length) | 0];
+    var ni = (r + DIRS[dd].dr) * n + (c + DIRS[dd].dc);
+    w[cur] &= ~DIRS[dd].bit;   // 打通当前格
+    w[ni]  &= ~DIRS[dd].ob;    // 打通邻格反向墙（双向一致）
+    vis[ni] = 1; stack.push(ni);
+  }
+  return w;
+}
+
+// BFS：返回 dist（-1=不可达）与 order（按层序，保证 dist 递增）
+function bfs(w, n, start) {
+  var total = n * n;
+  var dist = new Int32Array(total).fill(-1);
+  var order = [];
+  var q = [start]; dist[start] = 0;
+  for (var h = 0; h < q.length; h++) {
+    var i = q[h]; order.push(i);
+    var r = (i / n) | 0, c = i % n;
+    for (var d = 0; d < 4; d++) {
+      if (w[i] & DIRS[d].bit) continue;
+      var ni = (r + DIRS[d].dr) * n + (c + DIRS[d].dc);
+      if (dist[ni] === -1) { dist[ni] = dist[i] + 1; q.push(ni); }
+    }
+  }
+  return { dist: dist, order: order };
+}
+
+function pop4(v) { return (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1); }
+
+// 放置 3 颗星：优先选离起点较远的死胡同，且彼此保持间距
+function placeStars(w, n, start, exit) {
+  var total = n * n;
+  var b = bfs(w, n, start);
+  var maxD = 0;
+  for (var i = 0; i < total; i++) if (b.dist[i] > maxD) maxD = b.dist[i];
+  var cands = [];
+  for (var i2 = 0; i2 < total; i2++) {
+    if (i2 === start || i2 === exit) continue;
+    if (b.dist[i2] < 0) continue;
+    if (pop4(w[i2]) === 3 && b.dist[i2] >= maxD * 0.3) cands.push(i2); // 死胡同深处
+  }
+  // 兜底：死胡同不够时补充任意可达格
+  if (cands.length < 3) {
+    for (var i3 = 0; i3 < total; i3++) {
+      if (i3 !== start && i3 !== exit && b.dist[i3] >= 0 && cands.indexOf(i3) === -1) cands.push(i3);
+    }
+  }
+  for (var s = cands.length - 1; s > 0; s--) {
+    var j = (Math.random() * (s + 1)) | 0, t = cands[s]; cands[s] = cands[j]; cands[j] = t;
+  }
+  var picked = [];
+  var gaps = [Math.max(4, (n / 2) | 0), Math.max(3, (n / 3) | 0), 2, 1];
+  for (var g = 0; g < gaps.length && picked.length < 3; g++) {
+    for (var k = 0; k < cands.length && picked.length < 3; k++) {
+      var ci = cands[k];
+      if (picked.indexOf(ci) !== -1) continue;
+      var pr = (ci / n) | 0, pc = ci % n, ok = true;
+      for (var m = 0; m < picked.length; m++) {
+        if (Math.abs(((picked[m] / n) | 0) - pr) + Math.abs((picked[m] % n) - pc) < gaps[g]) { ok = false; break; }
+      }
+      if (ok) picked.push(ci);
+    }
+  }
+  return picked;
+}
+// __MAZE_ENGINE_END__
+
+/* ===================== 基础与状态 ===================== */
+var canvas = document.getElementById("game");
+var ctx = canvas.getContext("2d");
+var stage = document.getElementById("stage");
+var overlay = document.getElementById("overlay");
+var panel = document.getElementById("panel");
+var dpad = document.getElementById("dpad");
+var hTime = document.getElementById("hTime");
+var hStars = document.getElementById("hStars");
+var hBest = document.getElementById("hBest");
+var sndBtn = document.getElementById("sndBtn");
+var dpr = Math.min(window.devicePixelRatio || 1, 2);
+var isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+
+var DNAMES = ["up", "right", "down", "left"]; // 与 DIRS 下标对应
+var MOVE_DUR = 0.11;          // 单格移动补间时长（秒）
+
+var sizeChoice = 11;          // 菜单选中尺寸
+var N = 11, total = N * N;
+var cell = 24, pxSize = 264;
+var walls = null, mazeReady = false;
+var stars = [];               // 剩余星的下标
+var starsGot = 0;
+var visited = null;           // 足迹（小地图用）
+var fogMode = false;
+var player = { c:0, r:0, fc:0, fr:0, tc:0, tr:0, t:1, moving:false };
+var keys = { up:false, down:false, left:false, right:false };
+var timeLimit = 60, timeLeft = 60;
+var state = "MENU";           // MENU | PLAY | OVER
+var winFlag = false, newBest = false;
+var bestCache = null;
+var particles = [];
+var mz = document.createElement("canvas"); // 迷宫静态层（离屏预渲染）
+
+var muted = false;
+try { if (localStorage.getItem("me_muted") === "1") muted = true; } catch (e) {}
+
+function bestKey(n) { return "me_best_" + n; }
+function loadBest(n) {
+  try { var v = parseFloat(localStorage.getItem(bestKey(n))); return isNaN(v) ? null : v; }
+  catch (e) { return null; }
+}
+function saveBest(n, v) { try { localStorage.setItem(bestKey(n), String(v)); } catch (e) {} }
+
+/* ===================== 音效（WebAudio 合成） ===================== */
+var actx = null;
+function ac() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+  return actx;
+}
+function beep(freq, dur, type, gainv, delay) {
+  if (muted) return;
+  try {
+    var a = ac(); if (!a) return;
+    var t0 = a.currentTime + (delay || 0);
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(gainv || 0.1, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur);
+  } catch (e) {}
+}
+function footstep() { beep(110 + Math.random() * 60, 0.05, "square", 0.03); }
+function bumpSfx()   { beep(85, 0.06, "square", 0.045); }
+function starSfx()   { beep(880, 0.09, "sine", 0.12); beep(1318, 0.14, "sine", 0.12, 0.08); }
+function winSfx()    { [523, 659, 784, 1047].forEach(function (f, i) { beep(f, 0.16, "triangle", 0.12, i * 0.13); }); }
+function perfectSfx(){ [784, 988, 1175, 1568].forEach(function (f, i) { beep(f, 0.14, "sine", 0.1, 0.55 + i * 0.09); }); }
+function failSfx()   { beep(220, 0.3, "sawtooth", 0.09); beep(160, 0.4, "sawtooth", 0.09, 0.25); beep(110, 0.55, "sawtooth", 0.09, 0.5); }
+function clickSfx()  { beep(640, 0.04, "sine", 0.06); }
+function toggleMute() {
+  muted = !muted;
+  try { localStorage.setItem("me_muted", muted ? "1" : "0"); } catch (e) {}
+  sndBtn.textContent = muted ? "SOUND OFF" : "SOUND ON";
+  if (!muted) clickSfx();
+}
+
+/* ===================== 平台埋点（域名守卫，独立运行无副作用） ===================== */
+var sdkPlaying = false;
+function gameplayStartEvent() {
+  if (sdkPlaying) return; sdkPlaying = true;
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStart();
+    }
+  } catch (e) {}
+}
+function gameplayStopEvent() {
+  if (!sdkPlaying) return; sdkPlaying = false;
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStop();
+    }
+  } catch (e) {}
+}
+
+/* ===================== 画布自适应 ===================== */
+function resize() {
+  var availW = stage.clientWidth - 12, availH = stage.clientHeight - 12;
+  var s = Math.floor(Math.min(availW, availH) / N);
+  cell = Math.max(8, Math.min(46, s));
+  pxSize = cell * N;
+  canvas.style.width = pxSize + "px"; canvas.style.height = pxSize + "px";
+  canvas.width = Math.round(pxSize * dpr); canvas.height = Math.round(pxSize * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (walls) buildMazeLayer();
+}
+window.addEventListener("resize", resize);
+
+/* ===================== 迷宫静态层预渲染（石墙纹理） ===================== */
+function buildMazeLayer() {
+  var px = pxSize;
+  mz.width = Math.round(px * dpr); mz.height = Math.round(px * dpr);
+  var m2 = mz.getContext("2d");
+  m2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 地面：暗色棋盘格 + 确定性斑点
+  for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+    m2.fillStyle = (r + c) % 2 ? "#131a2e" : "#111728";
+    m2.fillRect(c * cell, r * cell, cell, cell);
+  }
+  m2.fillStyle = "rgba(255,255,255,0.035)";
+  for (var i = 0; i < total; i++) {
+    var hx = ((i * 137) % 100) / 100, hy = ((i * 89) % 100) / 100;
+    m2.fillRect((i % N) * cell + hx * cell * 0.78 + cell * 0.11,
+                ((i / N) | 0) * cell + hy * cell * 0.78 + cell * 0.11, 1.5, 1.5);
+  }
+  // 墙体画到临时画布上，再用 source-atop 只在墙面上做砖缝
+  var wc = document.createElement("canvas");
+  wc.width = mz.width; wc.height = mz.height;
+  var w2 = wc.getContext("2d");
+  w2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var ww = Math.max(2, Math.round(cell * 0.16));
+  w2.lineCap = "square";
+  w2.strokeStyle = "#49506e"; w2.lineWidth = ww;
+  w2.beginPath();
+  for (var r2 = 0; r2 < N; r2++) for (var c2 = 0; c2 < N; c2++) {
+    var v = walls[r2 * N + c2], x = c2 * cell, y = r2 * cell;
+    if (v & T) { w2.moveTo(x, y); w2.lineTo(x + cell, y); }
+    if (v & L) { w2.moveTo(x, y); w2.lineTo(x, y + cell); }
+    if (c2 === N - 1 && (v & R)) { w2.moveTo(x + cell, y); w2.lineTo(x + cell, y + cell); }
+    // 底边：出口格留出门洞（视觉开口，逻辑上仍受网格边界限制）
+    if (r2 === N - 1 && (v & B) && c2 !== N - 1) { w2.moveTo(x, y + cell); w2.lineTo(x + cell, y + cell); }
+  }
+  w2.stroke();
+  // 砖缝线（横向层 + 交错竖缝）+ 顶部高光，只作用于墙像素
+  w2.globalCompositeOperation = "source-atop";
+  var bh = Math.max(5, Math.round(cell * 0.38));
+  var bw = Math.max(8, Math.round(cell * 0.7));
+  w2.strokeStyle = "rgba(8,10,22,0.30)"; w2.lineWidth = 1;
+  w2.beginPath();
+  for (var yy = bh; yy < px; yy += bh) { w2.moveTo(0, yy); w2.lineTo(px, yy); }
+  w2.stroke();
+  w2.beginPath();
+  var row = 0;
+  for (var yy2 = 0; yy2 < px; yy2 += bh, row++) {
+    var off = (row % 2) ? bw / 2 : 0;
+    for (var xx = off; xx < px; xx += bw) { w2.moveTo(xx, yy2); w2.lineTo(xx, Math.min(px, yy2 + bh)); }
+  }
+  w2.stroke();
+  w2.strokeStyle = "rgba(255,255,255,0.06)";
+  w2.beginPath();
+  for (var yy3 = 1; yy3 < px; yy3 += bh) { w2.moveTo(0, yy3); w2.lineTo(px, yy3); }
+  w2.stroke();
+  w2.globalCompositeOperation = "source-over";
+  m2.drawImage(wc, 0, 0, px, px);
+  // 出口门柱 + 起点标记
+  m2.fillStyle = "#3f8f63";
+  m2.fillRect((N - 1) * cell + cell * 0.06, N * cell - ww - 2, cell * 0.12, ww + 2);
+  m2.fillRect(N * cell - cell * 0.18, N * cell - ww - 2, cell * 0.12, ww + 2);
+  m2.strokeStyle = "rgba(110,231,255,0.35)"; m2.lineWidth = 1.5;
+  m2.beginPath(); m2.arc(cell * 0.5, cell * 0.5, cell * 0.3, 0, Math.PI * 2); m2.stroke();
+  mazeReady = true;
+}
+
+/* ===================== 一局流程 ===================== */
+function showDpad() {
+  dpad.classList.toggle("show", isTouch && state === "PLAY");
+}
+function startRun() {
+  N = sizeChoice; total = N * N;
+  walls = genMaze(N);
+  stars = placeStars(walls, N, 0, total - 1).slice();
+  visited = new Uint8Array(total); visited[0] = 1;
+  player = { c:0, r:0, fc:0, fr:0, tc:0, tr:0, t:1, moving:false };
+  keys = { up:false, down:false, left:false, right:false };
+  starsGot = 0; newBest = false; winFlag = false;
+  timeLimit = N === 11 ? 60 : N === 17 ? 150 : 300;
+  timeLeft = timeLimit;
+  bestCache = loadBest(N);
+  particles = [];
+  state = "PLAY";
+  showDpad(); resize();
+  overlay.classList.remove("show");
+  gameplayStartEvent();
+  updateHUD();
+}
+function tryMove(d) {
+  if (state !== "PLAY" || player.moving) return false;
+  if (walls[player.r * N + player.c] & DIRS[d].bit) return false;
+  var nc = player.c + DIRS[d].dc, nr = player.r + DIRS[d].dr;
+  if (nc < 0 || nr < 0 || nc >= N || nr >= N) return false;
+  player.moving = true; player.t = 0;
+  player.fc = player.c; player.fr = player.r;
+  player.tc = nc; player.tr = nr;
+  footstep();
+  return true;
+}
+function arrive() {
+  var i = player.r * N + player.c;
+  visited[i] = 1;
+  var si = stars.indexOf(i);
+  if (si !== -1) {
+    stars.splice(si, 1); starsGot++;
+    starSfx();
+    popFX((player.c + 0.5) * cell, (player.r + 0.5) * cell, "#ffd76a", 14);
+  }
+  if (i === total - 1) win();
+}
+function win() {
+  state = "OVER"; winFlag = true;
+  var elapsed = timeLimit - timeLeft;
+  if (bestCache === null || elapsed < bestCache) { bestCache = elapsed; saveBest(N, elapsed); newBest = true; }
+  gameplayStopEvent();
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.happytime();
+    }
+  } catch (e) {}
+  winSfx(); if (starsGot === 3) perfectSfx();
+  popFX((player.c + 0.5) * cell, (player.r + 0.5) * cell, "#6ee7ff", 26);
+  popFX((player.c + 0.5) * cell, (player.r + 0.5) * cell, "#ffd76a", 18);
+  showDpad(); updateHUD(); showWin(elapsed);
+}
+function fail() {
+  state = "OVER"; winFlag = false;
+  gameplayStopEvent();
+  failSfx();
+  showDpad(); updateHUD(); showFail();
+}
+
+/* ===================== 更新 ===================== */
+function update(dt) {
+  // 倒计时：dt 累计（rAF 后台不跑、dt 有 0.05s 钳制，切后台不会跳秒）
+  timeLeft -= dt;
+  if (timeLeft <= 0) { timeLeft = 0; fail(); return; }
+  if (player.moving) {
+    player.t += dt / MOVE_DUR;
+    if (player.t >= 1) {
+      player.t = 1; player.moving = false;
+      player.c = player.tc; player.r = player.tr;
+      arrive();
+      if (state !== "PLAY") return;
+    }
+  } else {
+    var d = -1;
+    if (keys.up) d = 0; else if (keys.right) d = 1; else if (keys.down) d = 2; else if (keys.left) d = 3;
+    if (d >= 0) tryMove(d);
+  }
+  updateHUD();
+}
+
+/* ===================== 渲染 ===================== */
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function roundRect(c, x, y, w, h, rad) {
+  c.beginPath();
+  c.moveTo(x + rad, y);
+  c.arcTo(x + w, y, x + w, y + h, rad);
+  c.arcTo(x + w, y + h, x, y + h, rad);
+  c.arcTo(x, y + h, x, y, rad);
+  c.arcTo(x, y, x + w, y, rad);
+  c.closePath();
+}
+function starPath(c, x, y, ro, ri) {
+  c.beginPath();
+  for (var k = 0; k < 10; k++) {
+    var ang = -Math.PI / 2 + k * Math.PI / 5;
+    var rad = (k % 2 === 0) ? ro : ri;
+    var xx = x + Math.cos(ang) * rad, yy = y + Math.sin(ang) * rad;
+    if (k === 0) c.moveTo(xx, yy); else c.lineTo(xx, yy);
+  }
+  c.closePath();
+}
+function popFX(x, y, color, n) {
+  for (var i = 0; i < (n || 10); i++) {
+    var a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 110;
+    particles.push({ x:x, y:y, vx:Math.cos(a) * s, vy:Math.sin(a) * s - 30, life:0.45 + Math.random() * 0.3, max:0.75, color:color, size:1.5 + Math.random() * 2.5 });
+  }
+}
+function stepParticles(dt) {
+  for (var i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i]; p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 150 * dt;
+  }
+}
+
+function render(now) {
+  if (!mazeReady) return;
+  ctx.drawImage(mz, 0, 0, pxSize, pxSize);
+  if (state === "MENU") return;
+  var pulse = 0.5 + 0.5 * Math.sin(now * 2.6);
+  // 出口光门：底部门缝光条 + 向上光束 + 径向光晕
+  var gx = (N - 0.5) * cell, gy = (N - 0.5) * cell;
+  var beam = ctx.createLinearGradient(0, N * cell, 0, N * cell - cell * 1.2);
+  beam.addColorStop(0, "rgba(140,255,180," + (0.28 + 0.14 * pulse) + ")");
+  beam.addColorStop(1, "rgba(140,255,180,0)");
+  ctx.fillStyle = beam;
+  ctx.fillRect((N - 1) * cell + cell * 0.1, N * cell - cell * 1.2, cell * 0.8, cell * 1.2);
+  var gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, cell * 1.6);
+  gr.addColorStop(0, "rgba(110,255,158," + (0.30 + 0.18 * pulse) + ")");
+  gr.addColorStop(1, "rgba(110,255,158,0)");
+  ctx.fillStyle = gr;
+  ctx.fillRect(gx - cell * 1.6, gy - cell * 1.6, cell * 3.2, cell * 3.2);
+  ctx.shadowColor = "#6dff9e"; ctx.shadowBlur = 6 + 10 * pulse;
+  ctx.fillStyle = "rgba(180,255,205," + (0.7 + 0.3 * pulse) + ")";
+  ctx.fillRect((N - 1) * cell + cell * 0.18, N * cell - Math.max(2, cell * 0.12), cell * 0.64, Math.max(2, cell * 0.12));
+  ctx.shadowBlur = 0;
+  // 星星（发光脉动）
+  for (var si = 0; si < stars.length; si++) {
+    var idx = stars[si], sr = (idx / N) | 0, sc = idx % N;
+    var sx = (sc + 0.5) * cell, sy = (sr + 0.5) * cell;
+    var pu = 0.7 + 0.3 * Math.sin(now * 3.5 + si * 2.1);
+    var gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, cell * 0.9);
+    gg.addColorStop(0, "rgba(255,215,106," + (0.45 * pu) + ")");
+    gg.addColorStop(1, "rgba(255,215,106,0)");
+    ctx.fillStyle = gg;
+    ctx.fillRect(sx - cell, sy - cell, cell * 2, cell * 2);
+    ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 10 * pu;
+    ctx.fillStyle = "#ffd76a";
+    starPath(ctx, sx, sy, cell * 0.30 * (0.9 + 0.1 * pu), cell * 0.13);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // 玩家（滑动补间 + 发光）
+  var ex = player.moving ? easeOut(player.t) : 1;
+  var pxc = player.moving ? (player.fc + (player.tc - player.fc) * ex) : player.c;
+  var pyc = player.moving ? (player.fr + (player.tr - player.fr) * ex) : player.r;
+  var px = (pxc + 0.5) * cell, py = (pyc + 0.5) * cell;
+  ctx.shadowColor = "#6ee7ff"; ctx.shadowBlur = 14;
+  ctx.fillStyle = "#eafcff";
+  ctx.beginPath(); ctx.arc(px, py, cell * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#39c6f0";
+  ctx.beginPath(); ctx.arc(px, py, cell * 0.14, 0, Math.PI * 2); ctx.fill();
+  // 粒子
+  for (var p = 0; p < particles.length; p++) {
+    var pt = particles[p];
+    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life / pt.max));
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+  // 迷雾：以玩家为中心的径向渐变（约 3 格视野）
+  if (fogMode) {
+    var fg = ctx.createRadialGradient(px, py, cell * 1.1, px, py, cell * 3.2);
+    fg.addColorStop(0, "rgba(5,7,18,0)");
+    fg.addColorStop(0.55, "rgba(5,7,18,0.30)");
+    fg.addColorStop(1, "rgba(5,7,18,0.97)");
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, 0, pxSize, pxSize);
+  } else {
+    // 小地图：右上角显示探索足迹
+    var ms = N >= 25 ? 3 : N >= 17 ? 4 : 5;
+    var mw = N * ms;
+    var mx = pxSize - mw - 8, my = 8;
+    ctx.fillStyle = "rgba(8,11,24,.85)";
+    roundRect(ctx, mx - 4, my - 4, mw + 8, mw + 8, 6); ctx.fill();
+    ctx.strokeStyle = "#2c3554"; ctx.lineWidth = 1;
+    roundRect(ctx, mx - 4, my - 4, mw + 8, mw + 8, 6); ctx.stroke();
+    ctx.fillStyle = "rgba(96,120,220,.85)";
+    for (var i = 0; i < total; i++) {
+      if (visited[i]) ctx.fillRect(mx + (i % N) * ms, my + ((i / N) | 0) * ms, ms - 0.5, ms - 0.5);
+    }
+    ctx.fillStyle = "#6dff9e";
+    ctx.fillRect(mx + (N - 1) * ms, my + (N - 1) * ms, ms - 0.5, ms - 0.5);
+    ctx.fillStyle = "#6ee7ff";
+    ctx.fillRect(mx + player.c * ms, my + player.r * ms, ms - 0.5, ms - 0.5);
+  }
+}
+
+/* ===================== HUD ===================== */
+var lastTimeTxt = "";
+function fmt(t) {
+  if (t === null || t === undefined || isNaN(t)) return "--";
+  var m = Math.floor(t / 60), s = t - m * 60;
+  if (m > 0) return m + ":" + (s < 10 ? "0" : "") + s.toFixed(1);
+  return s.toFixed(1) + "s";
+}
+function fmtRem(t) {
+  t = Math.max(0, Math.ceil(t));
+  var m = Math.floor(t / 60), s = t % 60;
+  return m + ":" + (s < 10 ? "0" : "") + s;
+}
+function updateHUD() {
+  var t = fmtRem(timeLeft);
+  if (t !== lastTimeTxt) { hTime.textContent = t; lastTimeTxt = t; }
+  hTime.classList.toggle("low", state === "PLAY" && timeLeft <= 10.5);
+  hStars.textContent = starsGot + "/3";
+  hBest.textContent = fmt(bestCache);
+}
+
+/* ===================== 界面（开始 / 胜利 / 失败） ===================== */
+function sizeBtnHTML(n, name, desc) {
+  return '<button class="sizeBtn' + (sizeChoice === n ? " sel" : "") + '" data-act="size-' + n + '">' + name +
+         "<small>" + desc + "</small></button>";
+}
+function showMenu() {
+  state = "MENU";
+  gameplayStopEvent();
+  stars = []; particles = [];
+  N = sizeChoice; total = N * N;
+  walls = genMaze(N);          // 菜单背景迷宫（装饰）
+  bestCache = loadBest(sizeChoice);
+  showDpad(); resize();
+  var sizeName = sizeChoice === 11 ? "Small" : sizeChoice === 17 ? "Medium" : "Large";
+  panel.innerHTML =
+    '<div class="logo">MAZE ESCAPE</div>' +
+    '<p class="sub">Race through a procedurally generated maze and reach the glowing exit before time runs out. Gold stars hide deep in dead ends — collect all 3 for a <b>PERFECT</b> escape.</p>' +
+    '<div class="row">' +
+      sizeBtnHTML(11, "SMALL", "11×11 · 60s") +
+      sizeBtnHTML(17, "MEDIUM", "17×17 · 150s") +
+      sizeBtnHTML(25, "LARGE", "25×25 · 300s") +
+    '</div>' +
+    '<button class="opt' + (fogMode ? " on" : "") + '" data-act="fog">FOG MODE: ' + (fogMode ? "ON" : "OFF") +
+      '<span class="optsub">vision limited to ~3 tiles around you</span></button>' +
+    '<button class="main" data-act="play">PLAY</button>' +
+    '<p class="hint">Best time (' + sizeName + '): ' + fmt(bestCache) + '<br>' +
+    'Arrows / WASD to move · swipe or on-screen D-pad on mobile · M to mute · Esc for menu</p>';
+  overlay.classList.add("show");
+}
+function showWin(elapsed) {
+  var html = '<h2 class="wt">ESCAPED!</h2>';
+  if (starsGot === 3) html += '<div class="tag gold">PERFECT</div>';
+  html += '<div class="final">' + fmt(elapsed) + "</div>" +
+    '<p class="sub">Stars: ' + starsGot + "/3 · " + N + "×" + N + " maze" + (fogMode ? " · fog mode" : "") + "</p>";
+  if (newBest) html += '<div class="tag">NEW BEST TIME</div>';
+  html += '<div class="btnRow"><button class="main" data-act="retry">PLAY AGAIN</button>' +
+          '<button class="ghost" data-act="menu">MENU</button></div>';
+  panel.innerHTML = html;
+  overlay.classList.add("show");
+}
+function showFail() {
+  panel.innerHTML =
+    '<h2 class="lt">TIME\'S UP</h2>' +
+    '<p class="sub">The exit was so close...</p>' +
+    '<p class="sub">Stars: ' + starsGot + "/3 · " + N + "×" + N + " maze" + (fogMode ? " · fog mode" : "") + "</p>" +
+    '<div class="btnRow"><button class="main" data-act="retry">RETRY</button>' +
+    '<button class="ghost" data-act="menu">MENU</button></div>';
+  overlay.classList.add("show");
+}
+panel.addEventListener("click", function (e) {
+  var b = e.target.closest ? e.target.closest("[data-act]") : null;
+  if (!b) return;
+  var act = b.getAttribute("data-act");
+  clickSfx();
+  if (act.indexOf("size-") === 0) { sizeChoice = parseInt(act.slice(5), 10); showMenu(); }
+  else if (act === "fog") { fogMode = !fogMode; showMenu(); }
+  else if (act === "play" || act === "retry") startRun();
+  else if (act === "menu") showMenu();
+});
+sndBtn.addEventListener("click", toggleMute);
+document.getElementById("menuBtn").addEventListener("click", function () { clickSfx(); showMenu(); });
+
+/* ===================== 输入：键盘 / 虚拟方向键 / 滑动 ===================== */
+var KEYMAP = { ArrowUp:0, KeyW:0, ArrowRight:1, KeyD:1, ArrowDown:2, KeyS:2, ArrowLeft:3, KeyA:3 };
+document.addEventListener("keydown", function (e) {
+  var d = KEYMAP[e.code];
+  if (d !== undefined || e.key === " " || (e.key && e.key.indexOf("Arrow") === 0)) e.preventDefault();
+  if (e.key === "m" || e.key === "M") { if (!e.repeat) toggleMute(); }
+  if (e.key === "Escape" && state === "PLAY") { showMenu(); return; }
+  if ((e.key === "Enter" || e.key === " ") && (state === "MENU" || state === "OVER")) { clickSfx(); startRun(); return; }
+  if (d !== undefined) {
+    keys[DNAMES[d]] = true;
+    if (!e.repeat && !player.moving && !tryMove(d)) bumpSfx();
+  }
+});
+document.addEventListener("keyup", function (e) {
+  var d = KEYMAP[e.code];
+  if (d !== undefined) keys[DNAMES[d]] = false;
+});
+function bindPad(id, dir) {
+  var el = document.getElementById(id);
+  function down(e) { e.preventDefault(); keys[dir] = true; }
+  function up() { keys[dir] = false; }
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+  el.addEventListener("pointerleave", up);
+  el.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+}
+bindPad("pUp", "up"); bindPad("pRight", "right"); bindPad("pDown", "down"); bindPad("pLeft", "left");
+dpad.addEventListener("touchstart", function (e) { e.preventDefault(); }, { passive: false });
+dpad.addEventListener("touchend", function (e) { e.preventDefault(); }, { passive: false });
+// 画布滑动手势：一次滑动走一格
+var swipe = null;
+canvas.addEventListener("pointerdown", function (e) { swipe = { x:e.clientX, y:e.clientY }; });
+canvas.addEventListener("pointerup", function (e) {
+  if (!swipe) return;
+  var dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  swipe = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  if (state !== "PLAY" || player.moving) return;
+  var d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+  if (!tryMove(d)) bumpSfx();
+});
+canvas.addEventListener("pointercancel", function () { swipe = null; });
+canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+/* ===================== 主循环 ===================== */
+var last = 0;
+function frame(t) {
+  var dt = Math.min((t - last) / 1000, 0.05); last = t;
+  if (state === "PLAY") update(dt);
+  stepParticles(dt);
+  render(t / 1000);
+  requestAnimationFrame(frame);
+}
+
+/* ===================== 启动 ===================== */
+sndBtn.textContent = muted ? "SOUND OFF" : "SOUND ON";
+showMenu();
+updateHUD();
+requestAnimationFrame(frame);
+// 调试/测试钩子（不影响游戏逻辑）
+window.__me = {
+  get state() { return state; },
+  get N() { return N; },
+  get walls() { return walls; },
+  get stars() { return stars; },
+  get starsGot() { return starsGot; },
+  get player() { return player; },
+  get timeLeft() { return timeLeft; },
+  get fogMode() { return fogMode; },
+  start: function (n, fog) { sizeChoice = n || 11; fogMode = !!fog; startRun(); }
+};
+</script>
+</body>
+</html>
